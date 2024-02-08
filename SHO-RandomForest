@@ -1,0 +1,84 @@
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
+
+# Sample data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)  # Replace X, y with your actual data
+
+# Define the RandomForestRegressor
+rf_reg = RandomForestRegressor(random_state=42)
+
+# Define the hyperparameter bounds for SHO
+bounds = [
+    (3, 20),      # max_depth
+    (50, 500),    # n_estimators
+]
+
+def initialize_hyenas(num_hyenas, bounds):
+    hyenas = np.random.uniform(low=np.array([bound[0] for bound in bounds]), high=np.array([bound[1] for bound in bounds]), size=(num_hyenas, len(bounds)))
+    return hyenas
+
+def update_position(alpha, beta, delta, hyena, a, A, C, bounds):
+    D = len(hyena)
+    for i in range(D):
+        r1, r2 = np.random.random(), np.random.random()
+        A1 = 2 * a * r1 - a
+        C1 = 2 * r2
+        D_alpha = abs(C1 * alpha[i] - hyena[i])
+        X1 = alpha[i] - A1 * D_alpha
+
+        r1, r2 = np.random.random(), np.random.random()
+        A2 = 2 * a * r1 - a
+        C2 = 2 * r2
+        D_beta = abs(C2 * beta[i] - hyena[i])
+        X2 = beta[i] - A2 * D_beta
+
+        r1, r2 = np.random.random(), np.random.random()
+        A3 = 2 * a * r1 - a
+        C3 = 2 * r2
+        D_delta = abs(C3 * delta[i] - hyena[i])
+        X3 = delta[i] - A3 * D_delta
+
+        hyena[i] = (X1 + X2 + X3) / 3
+
+        # Ensure the new position is within the bounds
+        hyena[i] = np.clip(hyena[i], bounds[i][0], bounds[i][1])
+
+    return hyena
+
+def sho_optimization(objective_function, bounds, num_hyenas=5, iterations=50):
+    hyenas = initialize_hyenas(num_hyenas, bounds)
+    best_hyena = None
+    best_fitness = np.inf
+
+    for _ in range(iterations):
+        a = 2 - 2 * _ / iterations  # linearly decreased from 2 to 0
+
+        for hyena in hyenas:
+            fitness = objective_function(hyena)
+            if fitness < best_fitness:
+                best_fitness = fitness
+                best_hyena = hyena
+
+        for hyena in hyenas:
+            hyena = update_position(hyenas[0], hyenas[1], hyenas[2], hyena, a, 2 * np.random.random(), 2 * np.random.random(), bounds)
+
+    return best_hyena
+
+# Define the objective function for SHO
+def objective_function(params):
+    rf_reg.set_params(
+        max_depth=int(params[0]),
+        n_estimators=int(params[1])
+    )
+    rf_reg.fit(X_train, y_train)
+    y_pred = rf_reg.predict(X_test)
+    mse = mean_squared_error(y_test, y_pred)
+    return mse
+
+# Perform SHO optimization
+best_params = sho_optimization(objective_function, bounds)
+
+# Print the best parameters
+print("Best Parameters:", best_params)
